@@ -35,7 +35,7 @@ Optional modules:
 
 ---
 
-## 🏗 Architecture
+##  Architecture
 
 Client
 ↓
