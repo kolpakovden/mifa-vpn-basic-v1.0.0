@@ -9,9 +9,9 @@ TARGET_HOST="www.microsoft.com"
 FINGERPRINT="chrome"
 
 # --- helpers ---
-info() { echo -e "ℹ️  $*"; }
-ok()   { echo -e "✅ $*"; }
-err()  { echo -e "❌ $*" >&2; }
+info() { echo "[INFO] $*"; }
+ok()   { echo "[OK] $*"; }
+err()  { echo "[ERROR] $*" >&2; }
 
 usage() {
   cat <<'EOF'
