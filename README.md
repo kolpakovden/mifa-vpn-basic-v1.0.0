@@ -1,41 +1,38 @@
-# MIFA-VPN-basic
+# MIFA-VPN-basic v1.0.0
 
-Minimal installer for **Xray (VLESS + Reality)**.  
-RU-friendly default port: **8443** (because 443 may be unreliable under DPI).
+First stable public release of MIFA-VPN-basic — a minimal, production-ready installer for Xray (VLESS + Reality).
 
-## Install
-```
-git clone https://github.com/<you>/MIFA-VPN-basic.git
+## Features
+
+Minimal and clean Xray installer
+VLESS + Reality configuration
+RU-friendly default port: 8443
+Configurable port (--port, --443, --8443)
+Configurable SNI/target
+Non-interactive mode (--non-interactive)
+Automatic UUID generation
+Automatic Reality key generation
+Supports Xray v26+ (Password/pbk format)
+systemd service integration
+Ready-to-import VLESS URI output
+
+## Reality Key Compatibility
+
+This release supports both:
+Legacy Xray output (Private key / Public key)
+New Xray v26+ output (PrivateKey / Password)
+The installer automatically detects and parses the correct format.
+
+## Installation
+
+git clone https://github.com/kolpakovden/MIFA-VPN-basic.git
 cd MIFA-VPN-basic
 sudo bash install.sh
-```
-The script prints a ready-to-import VLESS URI.
-
-## Presets
-```
-sudo bash install.sh --8443
-sudo bash install.sh --443
-sudo bash install.sh --port 12345
-sudo bash install.sh --non-interactive --8443
-```
-
-## Paths
-
-- Config: /usr/local/etc/xray/config.json
-- Logs: /var/log/xray/
-- Service: systemctl status xray
-
-## Troubleshooting
-```
-journalctl -u xray -f
-xray run -test -config /usr/local/etc/xray/config.json
-ss -tuln | grep -E '443|8443'
-```
 
 ## License
 MIT
 
 ## Disclaimer
 
-This project is provided for infrastructure automation purposes.
-Ensure compliance with laws and regulations in your jurisdiction.
+This project is intended for infrastructure automation and educational purposes.
+Ensure compliance with local laws and regulations in your jurisdiction.
