@@ -1,10 +1,10 @@
-# mifa-vpn-basic v1.0.0
+## Mifa-VPN-basic
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Xray](https://img.shields.io/badge/Xray-v26%2B-green)](https://github.com/XTLS/Xray-core)
-[![Ubuntu Tested](https://img.shields.io/badge/Tested-Ubuntu%2022.04%20%7C%2024.04-orange)]()
+![Version](https://img.shields.io/badge/version-v1.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Ubuntu-orange)
 
-Minimal, production-ready installer for **Xray (VLESS + Reality)**.
+Minimal, production-ready installer for Xray (VLESS + Reality)
 
 > Default RU-friendly port: **8443**  
 > Supports modern **Xray v26+ (Password/pbk format)**  
