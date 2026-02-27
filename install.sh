@@ -107,8 +107,15 @@ SERVER_IP=$(curl -fsSL https://api.ipify.org || echo "YOUR_SERVER_IP")
 ########################################
 print_step "Создание конфигурации"
 
-mkdir -p /usr/local/etc/xray
-mkdir -p /var/log/xray
+print_info "Генерация ключей Reality и UUID..."
+
+KEYS=$(xray x25519)
+PRIVATE_KEY=$(echo "$KEYS" | awk '/Private/{print $3}')
+PUBLIC_KEY=$(echo "$KEYS" | awk '/Public/{print $3}')
+UUID=$(xray uuid)
+SHORT_ID=$(openssl rand -hex 8)
+
+SERVER_IP=$(curl -fsSL https://api.ipify.org || echo "YOUR_SERVER_IP")
 
 cat > /usr/local/etc/xray/config.json <<EOF
 {
@@ -140,13 +147,12 @@ cat > /usr/local/etc/xray/config.json <<EOF
     }
   }],
   "outbounds": [{
-    "protocol": "freedom",
-    "tag": "direct"
+    "protocol": "freedom"
   }]
 }
 EOF
 
-print_success "Конфигурация создана"
+print_success "Конфигурация создана автоматически"
 
 ########################################
 # Permissions
