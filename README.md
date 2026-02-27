@@ -1,9 +1,9 @@
 # MIFA-VPN-basic v1.0.0
 
-First stable public release of MIFA-VPN-basic — a minimal, production-ready installer for Xray (VLESS + Reality).
+First stable public release of MIFA-VPN-basic - a minimal, production-ready installer for Xray (VLESS + Reality).
 
 ## Features
-
+```
 Minimal and clean Xray installer
 VLESS + Reality configuration
 RU-friendly default port: 8443
@@ -15,7 +15,7 @@ Automatic Reality key generation
 Supports Xray v26+ (Password/pbk format)
 systemd service integration
 Ready-to-import VLESS URI output
-
+```
 ## Reality Key Compatibility
 
 This release supports both:
