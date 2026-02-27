@@ -1,121 +1,63 @@
 #!/usr/bin/env bash
-
-# MIFA-VPN Production Installer
-# Version: 2.0 (production)
-# License: MIT
-
+# MIFA-VPN-basic installer (minimal)
+# Installs Xray + generates VLESS Reality config + starts service
 set -euo pipefail
 
-########################################
-# Colors
-########################################
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# --- helpers ---
+info()  { echo -e "ℹ️  $*"; }
+ok()    { echo -e "✅ $*"; }
+err()   { echo -e "❌ $*" >&2; }
 
-########################################
-# UI Functions
-########################################
-print_step() {
-    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}➡ ${NC}${YELLOW}$1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    err "Запусти с sudo или от root"
+    exit 1
+  fi
 }
 
-print_success() { echo -e "${GREEN}$1${NC}"; }
-print_error() { echo -e "${RED}$1${NC}"; }
-print_info() { echo -e "${BLUE}$1${NC}"; }
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { err "Не найдено: $1"; exit 1; }
+}
 
-########################################
-# Root Check
-########################################
-if [[ "${EUID}" -ne 0 ]]; then
-    print_error "Запустите скрипт с sudo или от root"
-    exit 1
+port_free() {
+  # ss preferred, fallback netstat if exists
+  if command -v ss >/dev/null 2>&1; then
+    ss -tuln | awk '{print $5}' | grep -qE ':(443)$' && return 1 || return 0
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -tuln | awk '{print $4}' | grep -qE ':(443)$' && return 1 || return 0
+  fi
+  # If no tool to check, don't block install
+  return 0
+}
+
+# --- main ---
+require_root
+need_cmd curl
+need_cmd openssl
+
+if ! port_free; then
+  err "Порт 443 занят. Освободи его (nginx/apache/другой сервис) и повтори."
+  exit 1
 fi
+ok "Порт 443 свободен"
 
-########################################
-# systemd Check
-########################################
-if ! command -v systemctl &>/dev/null; then
-    print_error "Systemd не найден. Поддерживаются только systemd-системы."
-    exit 1
-fi
-
-########################################
-# Dependencies Check
-########################################
-print_step "Проверка зависимостей"
-
-for cmd in curl openssl ss; do
-    if ! command -v $cmd &>/dev/null; then
-        print_error "$cmd не установлен. Установите и повторите запуск."
-        exit 1
-    fi
-done
-
-print_success "Все зависимости установлены"
-
-########################################
-# Port Check
-########################################
-print_step "Проверка порта 443"
-
-if ss -tulnp | grep -q ":443 "; then
-    print_error "Порт 443 уже занят. Освободите его перед установкой."
-    exit 1
-fi
-
-print_success "Порт 443 свободен"
-
-########################################
-# Install Xray
-########################################
-print_step "Установка Xray"
-
+info "Устанавливаем Xray (официальный installer)..."
 bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+need_cmd xray
+ok "Xray установлен"
 
-if ! command -v xray &>/dev/null; then
-    print_error "Xray не установлен!"
-    exit 1
-fi
+info "Генерируем UUID/keys/shortId..."
+KEYS="$(xray x25519)"
+PRIVATE_KEY="$(echo "$KEYS" | awk '/Private/{print $3}')"
+PUBLIC_KEY="$(echo "$KEYS"  | awk '/Public/{print $3}')"
+UUID="$(xray uuid)"
+SHORT_ID="$(openssl rand -hex 8)"
 
-print_success "Xray успешно установлен"
+SERVER_IP="$(curl -fsSL https://api.ipify.org || true)"
+SERVER_IP="${SERVER_IP:-YOUR_SERVER_IP}"
 
-########################################
-# Generate Credentials
-########################################
-print_step "Генерация ключей и UUID"
-
-KEYS=$(xray x25519)
-PRIVATE_KEY=$(echo "$KEYS" | awk '/Private/{print $3}')
-PUBLIC_KEY=$(echo "$KEYS" | awk '/Public/{print $3}')
-UUID=$(xray uuid)
-SHORT_ID=$(openssl rand -hex 8)
-
-print_success "Ключи успешно сгенерированы"
-
-########################################
-# Detect Public IP
-########################################
-SERVER_IP=$(curl -fsSL https://api.ipify.org || echo "YOUR_SERVER_IP")
-
-########################################
-# Create Config
-########################################
-print_step "Создание конфигурации"
-
-print_info "Генерация ключей Reality и UUID..."
-
-KEYS=$(xray x25519)
-PRIVATE_KEY=$(echo "$KEYS" | awk '/Private/{print $3}')
-PUBLIC_KEY=$(echo "$KEYS" | awk '/Public/{print $3}')
-UUID=$(xray uuid)
-SHORT_ID=$(openssl rand -hex 8)
-
-SERVER_IP=$(curl -fsSL https://api.ipify.org || echo "YOUR_SERVER_IP")
+info "Пишем конфиг..."
+install -d /usr/local/etc/xray /var/log/xray
 
 cat > /usr/local/etc/xray/config.json <<EOF
 {
@@ -152,76 +94,44 @@ cat > /usr/local/etc/xray/config.json <<EOF
 }
 EOF
 
-print_success "Конфигурация создана автоматически"
-
-########################################
-# Permissions
-########################################
-print_step "Настройка прав"
-
-if id xray &>/dev/null; then
-    XRAY_USER="xray"
-else
-    XRAY_USER="nobody"
+# permissions: prefer xray user if exists
+XRAY_USER="xray"
+if ! id "$XRAY_USER" >/dev/null 2>&1; then
+  XRAY_USER="nobody"
 fi
+XRAY_GROUP="$(id -gn "$XRAY_USER" 2>/dev/null || echo "$XRAY_USER")"
 
-chown -R $XRAY_USER:$XRAY_USER /usr/local/etc/xray
-chown -R $XRAY_USER:$XRAY_USER /var/log/xray
-chmod 640 /usr/local/etc/xray/config.json
+chown -R "$XRAY_USER:$XRAY_GROUP" /usr/local/etc/xray /var/log/xray || true
+chmod 640 /usr/local/etc/xray/config.json || true
+ok "Конфиг создан: /usr/local/etc/xray/config.json"
 
-print_success "Права настроены"
+info "Проверяем конфиг..."
+xray run -test -config /usr/local/etc/xray/config.json
+ok "Конфиг валиден"
 
-########################################
-# Firewall (UFW optional)
-########################################
-if command -v ufw &>/dev/null; then
-    ufw allow 443/tcp || true
-fi
-
-########################################
-# Validate Config
-########################################
-print_step "Проверка конфигурации"
-
-if ! xray run -test -config /usr/local/etc/xray/config.json; then
-    print_error "Конфиг содержит ошибки!"
-    exit 1
-fi
-
-print_success "Конфигурация валидна"
-
-########################################
-# Start Service
-########################################
-print_step "Запуск сервиса"
-
-systemctl daemon-reload
-systemctl enable xray
+info "Запускаем сервис..."
+systemctl enable xray >/dev/null
 systemctl restart xray
 
-sleep 2
-
 if ! systemctl is-active --quiet xray; then
-    print_error "Xray не запустился!"
-    systemctl status xray --no-pager
-    exit 1
+  err "Xray не запустился. Статус:"
+  systemctl status xray --no-pager || true
+  exit 1
 fi
+ok "Xray запущен"
 
-print_success "Xray успешно запущен"
+# Client link (publicKey is for client only)
+VLESS_LINK="vless://${UUID}@${SERVER_IP}:443?type=tcp&security=reality&pbk=${PUBLIC_KEY}&fp=chrome&sni=www.microsoft.com&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN-basic"
 
-########################################
-# Client Link
-########################################
-print_step "Данные для подключения"
-
-VLESS_LINK="vless://${UUID}@${SERVER_IP}:443?type=tcp&security=reality&pbk=${PUBLIC_KEY}&fp=chrome&sni=www.microsoft.com&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN"
-
-echo -e "${GREEN}UUID:${NC} $UUID"
-echo -e "${GREEN}PublicKey:${NC} $PUBLIC_KEY"
-echo -e "${GREEN}ShortID:${NC} $SHORT_ID"
-echo -e "${GREEN}Server IP:${NC} $SERVER_IP"
 echo
-echo -e "${YELLOW}VLESS ссылка:${NC}"
-echo -e "${BLUE}$VLESS_LINK${NC}"
+ok "Данные для клиента:"
+echo "UUID:      $UUID"
+echo "PublicKey: $PUBLIC_KEY"
+echo "ShortID:   $SHORT_ID"
+echo "Server IP: $SERVER_IP"
 echo
-echo -e "${GREEN}Установка завершена успешно ${NC}"
+echo "VLESS URI:"
+echo "$VLESS_LINK"
+echo
+info "Логи: journalctl -u xray -f"
+info "Access: /var/log/xray/access.log"
