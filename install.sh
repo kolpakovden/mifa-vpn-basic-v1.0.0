@@ -5,7 +5,8 @@
 set -euo pipefail
 
 DEFAULT_PORT="8443"
-TARGET_HOST="www.microsoft.com"
+DEFAULT_SNI="www.cloudflare.com"
+DEFAULT_TARGET="www.cloudflare.com:443"
 FINGERPRINT="chrome"
 
 # --- helpers ---
@@ -14,20 +15,23 @@ ok()   { echo "[OK] $*"; }
 err()  { echo "[ERROR] $*" >&2; }
 
 usage() {
-  cat <<'EOF'
+  cat <<EOF
 MIFA-VPN-basic installer (RU-friendly)
 
 Usage:
-  sudo bash install.sh                 # interactive (default port 8443)
-  sudo bash install.sh --8443          # preset port 8443
-  sudo bash install.sh --443           # preset port 443
-  sudo bash install.sh --port 12345    # custom port
-  sudo bash install.sh --non-interactive [--port N|--443|--8443]
+  sudo bash install.sh
+  sudo bash install.sh --8443
+  sudo bash install.sh --443
+  sudo bash install.sh --port 12345
+  sudo bash install.sh --sni example.com --target example.com:443
+  sudo bash install.sh --non-interactive [--port N|--443|--8443] [--sni DOMAIN] [--target HOST:PORT]
 
 Options:
   --port N             Set inbound port
   --443                Preset port 443
   --8443               Preset port 8443
+  --sni DOMAIN         Reality serverName / client SNI (default: ${DEFAULT_SNI})
+  --target HOST:PORT   Reality target (default: ${DEFAULT_TARGET})
   --non-interactive    Do not prompt (use defaults/flags)
   -h, --help           Show help
 EOF
@@ -61,9 +65,55 @@ validate_port() {
   return 0
 }
 
+validate_sni() {
+  # simple domain check (letters, digits, dots, hyphens)
+  local d="$1"
+  [[ "$d" =~ ^[A-Za-z0-9.-]+$ ]] && [[ "$d" == *.* ]] && [[ ${#d} -le 253 ]]
+}
+
+validate_target() {
+  # HOST:PORT (HOST can be domain; PORT numeric)
+  local t="$1"
+  [[ "$t" == *:* ]] || return 1
+  local host="${t%:*}"
+  local port="${t##*:}"
+  [[ -n "$host" ]] || return 1
+  validate_port "$port" || return 1
+  [[ "$host" =~ ^[A-Za-z0-9.-]+$ ]] || return 1
+  return 0
+}
+
+install_xray() {
+  if command -v xray >/dev/null 2>&1; then
+    ok "Xray уже установлен"
+    return 0
+  fi
+
+  info "Пробуем установить Xray через APT (deb.xray.guru)..."
+  if curl -fsSL --max-time 8 https://deb.xray.guru >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y ca-certificates gnupg >/dev/null
+
+    curl -fsSL https://deb.xray.guru/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/xray-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/xray-archive-keyring.gpg] https://deb.xray.guru stable main" \
+      > /etc/apt/sources.list.d/xray.list
+
+    apt-get update -y
+    apt-get install -y xray
+  else
+    info "APT-репозиторий недоступен. Пробуем официальный GitHub installer..."
+    bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+  fi
+
+  need_cmd xray
+  ok "Xray установлен"
+}
+
 # --- parse args ---
 PORT=""
 NON_INTERACTIVE="0"
+SNI="$DEFAULT_SNI"
+TARGET="$DEFAULT_TARGET"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,6 +126,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --8443)
       PORT="8443"
+      ;;
+    --sni)
+      shift
+      SNI="${1:-}"
+      ;;
+    --target)
+      shift
+      TARGET="${1:-}"
       ;;
     --non-interactive)
       NON_INTERACTIVE="1"
@@ -107,11 +165,22 @@ if ! validate_port "$PORT"; then
   exit 1
 fi
 
+if ! validate_sni "$SNI"; then
+  err "Некорректный SNI: $SNI"
+  exit 1
+fi
+
+if ! validate_target "$TARGET"; then
+  err "Некорректный target: $TARGET (пример: example.com:443)"
+  exit 1
+fi
+
 # --- main ---
 require_root
 need_cmd curl
 need_cmd openssl
 need_cmd systemctl
+need_cmd awk
 
 if ! is_port_free "$PORT"; then
   err "Порт ${PORT} занят. Освободи его и повтори."
@@ -119,34 +188,9 @@ if ! is_port_free "$PORT"; then
 fi
 ok "Порт ${PORT} свободен"
 
-info "Устанавливаем Xray (официальный installer)..."
-install_xray() {
-  if command -v xray >/dev/null 2>&1; then
-    ok "Xray уже установлен"
-    return
-  fi
-
-  info "Пробуем установить Xray через APT (deb.xray.guru)..."
-  if curl -fsSL --max-time 8 https://deb.xray.guru >/dev/null 2>&1; then
-    apt-get update -y
-    apt-get install -y ca-certificates gnupg >/dev/null
-
-    curl -fsSL https://deb.xray.guru/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/xray-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/xray-archive-keyring.gpg] https://deb.xray.guru stable main" \
-      > /etc/apt/sources.list.d/xray.list
-
-    apt-get update -y
-    apt-get install -y xray
-    ok "Xray установлен через APT"
-    return
-  fi
-
-  info "APT-репозиторий недоступен. Пробуем официальный GitHub installer..."
-  bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-  ok "Xray установлен через GitHub installer"
-}
-need_cmd xray
-ok "Xray установлен"
+info "Параметры Reality: SNI=${SNI}, target=${TARGET}"
+info "Устанавливаем Xray..."
+install_xray
 
 info "Генерируем UUID / Reality keys / shortId..."
 KEYS="$(xray x25519)"
@@ -183,8 +227,8 @@ cat > /usr/local/etc/xray/config.json <<EOF
       "security": "reality",
       "realitySettings": {
         "show": false,
-        "target": "${TARGET_HOST}:443",
-        "serverNames": ["${TARGET_HOST}"],
+        "target": "${TARGET}",
+        "serverNames": ["${SNI}"],
         "privateKey": "${PRIVATE_KEY}",
         "shortIds": ["${SHORT_ID}"]
       }
@@ -196,7 +240,6 @@ cat > /usr/local/etc/xray/config.json <<EOF
 }
 EOF
 
-# permissions (best-effort, distro differences allowed)
 XRAY_USER="xray"
 if ! id "$XRAY_USER" >/dev/null 2>&1; then
   XRAY_USER="nobody"
@@ -223,11 +266,13 @@ if ! systemctl is-active --quiet xray; then
 fi
 ok "Xray запущен"
 
-VLESS_LINK="vless://${UUID}@${SERVER_IP}:${PORT}?type=tcp&security=reality&pbk=${PUBLIC_KEY}&fp=${FINGERPRINT}&sni=${TARGET_HOST}&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN-basic"
+VLESS_LINK="vless://${UUID}@${SERVER_IP}:${PORT}?type=tcp&security=reality&pbk=${PUBLIC_KEY}&fp=${FINGERPRINT}&sni=${SNI}&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN-basic"
 
 echo
 ok "Данные для клиента:"
 echo "Port:      ${PORT}"
+echo "SNI:       ${SNI}"
+echo "Target:    ${TARGET}"
 echo "UUID:      ${UUID}"
 echo "PublicKey: ${PUBLIC_KEY}"
 echo "ShortID:   ${SHORT_ID}"
