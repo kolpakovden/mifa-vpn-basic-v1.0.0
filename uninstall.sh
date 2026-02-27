@@ -2,9 +2,9 @@
 # MIFA-VPN-basic uninstall script
 set -euo pipefail
 
-info() { echo -e "ℹ️  $*"; }
-ok()   { echo -e "✅ $*"; }
-err()  { echo -e "❌ $*" >&2; }
+info() { echo "[INFO] $*"; }
+ok()   { echo "[OK] $*"; }
+err()  { echo "[ERROR] $*" >&2; }
 
 if [[ "${EUID}" -ne 0 ]]; then
   err "Запусти с sudo или от root"
