@@ -194,13 +194,15 @@ info "Устанавливаем Xray..."
 install_xray
 
 info "Генерируем UUID / Reality keys / shortId..."
-KEYS="$(xray x25519)"
+KEYS="$(xray x25519 | tr -d '\r')"
 
-PRIVATE_KEY="$(echo "$KEYS" | sed -n 's/^Private key: //p' | head -n1)"
-PUBLIC_KEY="$(echo "$KEYS"  | sed -n 's/^Public key: //p'  | head -n1)"
+PRIVATE_KEY="$(printf '%s\n' "$KEYS" | sed -nE 's/.*Private[^:]*:[[:space:]]*([A-Za-z0-9_-]+).*/\1/p' | head -n1)"
+PUBLIC_KEY="$(printf  '%s\n' "$KEYS" | sed -nE 's/.*Public[^:]*:[[:space:]]*([A-Za-z0-9_-]+).*/\1/p'  | head -n1)"
 
 if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
-  err "Не удалось распарсить ключи из 'xray x25519'. Вывод команды:"
+  err "Не удалось распарсить ключи из 'xray x25519'."
+  err "Диагностика: длины ключей: private=${#PRIVATE_KEY}, public=${#PUBLIC_KEY}"
+  err "Сырой вывод (ключи будут показаны!):"
   echo "$KEYS"
   exit 1
 fi
