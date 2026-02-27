@@ -284,7 +284,7 @@ if ! systemctl is-active --quiet xray; then
 fi
 ok "Xray запущен"
 
-VLESS_LINK="vless://${UUID}@${SERVER_IP}:${PORT}?type=tcp&security=reality&pbk=${PUBLIC_KEY}&fp=${FINGERPRINT}&sni=${SNI}&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN-basic"
+VLESS_LINK="vless://${UUID}@${SERVER_IP}:${PORT}?type=tcp&security=reality&pbk=${PBK_OR_PASSWORD}&fp=${FINGERPRINT}&sni=${SNI}&sid=${SHORT_ID}&flow=xtls-rprx-vision#MIFA-VPN-basic"
 
 echo
 ok "Данные для клиента:"
@@ -292,7 +292,7 @@ echo "Port:      ${PORT}"
 echo "SNI:       ${SNI}"
 echo "Target:    ${TARGET}"
 echo "UUID:      ${UUID}"
-echo "PublicKey: ${PUBLIC_KEY}"
+echo "Password/pbk: ${PBK_OR_PASSWORD}"
 echo "ShortID:   ${SHORT_ID}"
 echo "Server IP: ${SERVER_IP}"
 echo
