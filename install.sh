@@ -194,24 +194,23 @@ info "Устанавливаем Xray..."
 install_xray
 
 info "Генерируем UUID / Reality keys / shortId..."
-
-# 1) Generate private key (this build prints: PrivateKey/Password/Hash32)
 KEYS="$(xray x25519 2>&1 | tr -d '\r')"
-PRIVATE_KEY="$(printf '%s\n' "$KEYS" | sed -nE 's/^PrivateKey:[[:space:]]*//p' | head -n1)"
 
+# New format (v26+): PrivateKey / Password / Hash32
+PRIVATE_KEY="$(printf '%s\n' "$KEYS" | sed -nE 's/^PrivateKey:[[:space:]]*//p' | head -n1)"
+PBK_OR_PASSWORD="$(printf '%s\n' "$KEYS" | sed -nE 's/^Password:[[:space:]]*//p'  | head -n1)"
+
+# Old format (legacy): "Private key:" / "Public key:"
 if [[ -z "$PRIVATE_KEY" ]]; then
-  err "Не удалось получить PrivateKey из 'xray x25519'. Вывод:"
-  echo "$KEYS"
-  exit 1
+  PRIVATE_KEY="$(printf '%s\n' "$KEYS" | sed -nE 's/^Private key:[[:space:]]*//p' | head -n1)"
+fi
+if [[ -z "$PBK_OR_PASSWORD" ]]; then
+  PBK_OR_PASSWORD="$(printf '%s\n' "$KEYS" | sed -nE 's/^Public key:[[:space:]]*//p' | head -n1)"
 fi
 
-# 2) Derive public key from private key
-PUB_OUT="$(xray x25519 -i "$PRIVATE_KEY" 2>&1 | tr -d '\r')"
-PUBLIC_KEY="$(printf '%s\n' "$PUB_OUT" | sed -nE 's/^PublicKey:[[:space:]]*//p' | head -n1)"
-
-if [[ -z "$PUBLIC_KEY" ]]; then
-  err "Не удалось получить PublicKey из 'xray x25519 -i <private>'. Вывод:"
-  echo "$PUB_OUT"
+if [[ -z "$PRIVATE_KEY" || -z "$PBK_OR_PASSWORD" ]]; then
+  err "Не удалось распарсить ключи из 'xray x25519'. Вывод:"
+  echo "$KEYS"
   exit 1
 fi
 
