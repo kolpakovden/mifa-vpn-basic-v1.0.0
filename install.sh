@@ -181,6 +181,7 @@ need_cmd curl
 need_cmd openssl
 need_cmd systemctl
 need_cmd awk
+need_cmd sed
 
 if ! is_port_free "$PORT"; then
   err "Порт ${PORT} занят. Освободи его и повтори."
@@ -194,8 +195,16 @@ install_xray
 
 info "Генерируем UUID / Reality keys / shortId..."
 KEYS="$(xray x25519)"
-PRIVATE_KEY="$(echo "$KEYS" | awk '/Private/{print $3}')"
-PUBLIC_KEY="$(echo "$KEYS"  | awk '/Public/{print $3}')"
+
+PRIVATE_KEY="$(echo "$KEYS" | sed -n 's/^Private key: //p' | head -n1)"
+PUBLIC_KEY="$(echo "$KEYS"  | sed -n 's/^Public key: //p'  | head -n1)"
+
+if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
+  err "Не удалось распарсить ключи из 'xray x25519'. Вывод команды:"
+  echo "$KEYS"
+  exit 1
+fi
+
 UUID="$(xray uuid)"
 SHORT_ID="$(openssl rand -hex 8)"
 
