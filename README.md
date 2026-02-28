@@ -10,6 +10,18 @@ Minimal, production-ready installer for Xray (VLESS + Reality)
 > Supports modern **Xray v26+ (Password/pbk format)**  
 > Clean, minimal, no telemetry.
 
+### Looking for Advanced Features?
+
+If you need:
+
+- Telegram-based user management  
+- Monitoring (Grafana + Prometheus + Loki)  
+- Modular architecture  
+- Production-grade observability  
+
+Check out the **MIFA VPN Platform** edition:
+https://github.com/kolpakovden/mifa-vpn-platform
+
 ---
 
 ## Features
@@ -67,6 +79,17 @@ Prevent server-side logging
 Protect against traffic correlation attacks
 ```
 You are responsible for proper operational security (OPSEC).
+
+## Edition Comparison
+
+| Feature | Basic | Platform |
+|----------|--------|-----------|
+| Xray (VLESS + Reality) |   ✅ |   ✅ |
+| Telegram Bot |   ❌ |   ✅ |
+| Monitoring Stack |   ❌ |   ✅ |
+| Architecture | Monolithic | Modular |
+| Target | Simple Setup | Production Infra |
+
 
 ## License
 MIT
